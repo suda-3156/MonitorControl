@@ -143,6 +143,31 @@ class OtherDisplay: Display {
     }
   }
 
+  // Re-reads the panel and updates prefs and the slider. Unlike setupCurrentAndMaxValues
+  // this never writes to the display, so it is safe to run whenever the menu opens.
+  // Must not be called on the main thread: readDDCValues syncs on globalDDCQueue.
+  func refreshValueFromDisplay(command: Command) {
+    guard !self.isSw(), !self.smoothBrightnessRunning, !self.readPrefAsBool(key: .unavailableDDC, for: command), self.pollingCount != 0, !app.safeMode else {
+      return
+    }
+    let delay = self.readPrefAsBool(key: .longerDelay) ? UInt64(40 * kMillisecondScale) : nil
+    guard let ddcValues = self.readDDCValues(for: command, tries: UInt(self.pollingCount), minReplyDelay: delay) else {
+      os_log("Refresh DDC read failed for %{public}@ of display %{public}@", type: .info, String(reflecting: command), String(self.identifier))
+      return
+    }
+    // A read takes about 70 ms, so the user might have grabbed the slider in the meantime.
+    // Dropping the value is better than yanking the knob out from under the pointer.
+    guard let sliderHandler = self.sliderHandler[command], !(sliderHandler.slider?.isTracking() ?? false) else {
+      return
+    }
+    self.processCurrentDDCValue(isReadFromDisplay: true, command: command, firstrun: false, currentDDCValue: ddcValues.current)
+    let value = self.setupSliderCurrentValue(command: command)
+    os_log("Refreshed %{public}@ of display %{public}@ to %{public}@", type: .info, String(reflecting: command), String(self.identifier), String(value))
+    DispatchQueue.main.async {
+      sliderHandler.setValue(value, displayID: self.identifier)
+    }
+  }
+
   func setupMuteUnMute() {
     guard !self.isSw(), !self.readPrefAsBool(key: .unavailableDDC, for: .audioSpeakerVolume), self.readPrefAsBool(key: .enableMuteUnmute) else {
       return

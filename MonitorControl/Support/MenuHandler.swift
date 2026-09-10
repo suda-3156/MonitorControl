@@ -8,6 +8,8 @@ class MenuHandler: NSMenu, NSMenuDelegate {
 
   var lastMenuRelevantDisplayId: CGDirectDisplayID = 0
 
+  private var isRefreshing = false
+
   func clearMenu() {
     var items: [NSMenuItem] = []
     for i in 0 ..< self.items.count {
@@ -22,6 +24,26 @@ class MenuHandler: NSMenu, NSMenuDelegate {
   func menuWillOpen(_: NSMenu) {
     self.updateMenuRelevantDisplay()
     app.keyboardShortcuts.disengage()
+    self.refreshDisplayValues()
+  }
+
+  // The panel can be adjusted with its own buttons, so the saved values go stale.
+  // Re-read them whenever the menu is shown. A DDC read costs about 70 ms per
+  // command, hence the background queue: the menu itself must appear instantly.
+  func refreshDisplayValues() {
+    guard !self.isRefreshing else {
+      return
+    }
+    self.isRefreshing = true
+    DispatchQueue.global(qos: .userInitiated).async {
+      defer { DispatchQueue.main.async { self.isRefreshing = false } }
+      for display in DisplayManager.shared.getOtherDisplays() {
+        // Only commands with a live slider are read, so a hidden slider costs nothing.
+        for command in [Command.brightness, .contrast, .audioSpeakerVolume] where display.sliderHandler[command] != nil {
+          display.refreshValueFromDisplay(command: command)
+        }
+      }
+    }
   }
 
   func closeMenu() {

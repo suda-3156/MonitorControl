@@ -180,6 +180,13 @@ class SliderHandler {
       }
     }
 
+    func isTracking() -> Bool {
+      if let cell = self.cell as? MCSliderCell {
+        return cell.isTracking
+      }
+      return false
+    }
+
     //  Credits for this class go to @thompsonate - https://github.com/thompsonate/Scrollable-NSSlider
     override func scrollWheel(with event: NSEvent) {
       guard self.isEnabled else { return }
