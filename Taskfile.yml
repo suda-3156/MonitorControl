@@ -9,8 +9,14 @@ vars:
   SCHEME: MonitorControl
   APP_NAME: MonitorControl.app
   BUNDLE_ID: app.monitorcontrol.MonitorControl
-  DERIVED_DATA: .build
   INSTALL_DIR: /Applications
+  # No -derivedDataPath: Xcode's own DerivedData location is used, which keeps
+  # build output out of the working tree and shares it with Xcode.app. Products
+  # inside the project directory make upstream's "Increase Build Number" phase
+  # fire on every build, because it bumps CFBundleVersion whenever it finds a
+  # file newer than Info.plist anywhere under PROJECT_DIR. The path is therefore
+  # not predictable and has to be asked for; PRODUCTS_DIR does that.
+  SHOW_BUILD_SETTINGS: xcodebuild -project MonitorControl.xcodeproj -scheme MonitorControl -showBuildSettings
   # Upstream ships DEVELOPMENT_TEAM = 299YSU96J7, which this machine cannot sign
   # with. Overriding on the command line keeps project.pbxproj identical to
   # upstream, so it merges cleanly. "-" is ad-hoc signing, the fallback when
@@ -59,31 +65,41 @@ tasks:
     internal: true
     requires:
       vars: [CONFIGURATION]
+    vars:
+      PRODUCTS_DIR:
+        sh: '{{.SHOW_BUILD_SETTINGS}} -configuration {{.CONFIGURATION}} | awk -F'' = '' ''/ BUILT_PRODUCTS_DIR = /{print $2; exit}'''
     cmds:
       - >-
         xcodebuild
         -project {{.PROJECT}}
         -scheme {{.SCHEME}}
         -configuration {{.CONFIGURATION}}
-        -derivedDataPath {{.DERIVED_DATA}}
         {{.SIGN_ARGS}}
         build
+      - cmd: echo "Built {{.CONFIGURATION}}:{{"\t"}}{{.PRODUCTS_DIR}}/{{.APP_NAME}}"
+        silent: true
 
   run:
-    desc: Build and launch the Debug build from the build directory
+    desc: Build and launch the Debug build in place
     deps: [build]
+    vars:
+      PRODUCTS_DIR:
+        sh: '{{.SHOW_BUILD_SETTINGS}} -configuration Debug | awk -F'' = '' ''/ BUILT_PRODUCTS_DIR = /{print $2; exit}'''
     cmds:
       - task: quit
-      - open {{.DERIVED_DATA}}/Build/Products/Debug/{{.APP_NAME}}
+      - open "{{.PRODUCTS_DIR}}/{{.APP_NAME}}"
 
   install:
     desc: Replace the app in /Applications with a local Release build
     prompt: Replace {{.INSTALL_DIR}}/{{.APP_NAME}} with the local Release build?
     deps: [build:release]
+    vars:
+      PRODUCTS_DIR:
+        sh: '{{.SHOW_BUILD_SETTINGS}} -configuration Release | awk -F'' = '' ''/ BUILT_PRODUCTS_DIR = /{print $2; exit}'''
     cmds:
       - task: quit
       - rm -rf "{{.INSTALL_DIR}}/{{.APP_NAME}}"
-      - ditto "{{.DERIVED_DATA}}/Build/Products/Release/{{.APP_NAME}}" "{{.INSTALL_DIR}}/{{.APP_NAME}}"
+      - ditto "{{.PRODUCTS_DIR}}/{{.APP_NAME}}" "{{.INSTALL_DIR}}/{{.APP_NAME}}"
       # Sparkle would otherwise offer to "update" this fork back to the official build.
       - defaults write {{.BUNDLE_ID}} SUEnableAutomaticChecks -bool false
       - cmd: |
@@ -99,9 +115,10 @@ tasks:
         ignore_error: true
 
   clean:
-    desc: Remove the build directory
+    desc: Remove the build products of both configurations
     cmds:
-      - rm -rf {{.DERIVED_DATA}}
+      - xcodebuild -project {{.PROJECT}} -scheme {{.SCHEME}} -configuration Debug clean
+      - xcodebuild -project {{.PROJECT}} -scheme {{.SCHEME}} -configuration Release clean
 
   format:
     desc: Run SwiftFormat over the given paths (never the whole tree)

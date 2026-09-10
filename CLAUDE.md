@@ -24,9 +24,20 @@ via `dotenv` and direnv loads via `.envrc`. It is git-ignored; `.env.example` is
 the tracked template and must stay free of machine-specific values. A missing
 `.env.local` is not an error, the build falls back to ad-hoc signing.
 
-Every build runs upstream's "Increase Build Number" phase, which bumps
-`CFBundleVersion` in both `Info.plist` files. The resulting diff is expected;
-commit it or discard it, but do not try to suppress it.
+Build output goes to Xcode's own DerivedData directory: the tasks deliberately
+do not pass `-derivedDataPath`, so `xcodebuild` and Xcode.app share one build
+directory and nothing lands in the working tree. This is not just tidiness.
+Upstream's "Increase Build Number" phase bumps `CFBundleVersion` in both
+`Info.plist` files whenever `find` reports a file newer than `Info.plist`
+anywhere under `PROJECT_DIR`, and it is not gated on dependency analysis, so
+build products inside the project directory make even a no-op build produce a
+version diff. With the default location the bump happens once per editing
+session, which is what upstream intends; commit that diff or discard it, but do
+not try to suppress it.
+
+The product path is not predictable (DerivedData names carry a hash), so the
+build tasks ask `xcodebuild -showBuildSettings` for `BUILT_PRODUCTS_DIR` and
+print the resulting path when they finish.
 
 ## Code signing
 
@@ -88,9 +99,9 @@ fork's own diff would be buried under thousands of unrelated lines. Nothing in
 the app fails when the tool is absent.
 
 If it ever has to be installed anyway: `task format -- <paths>` formats only the
-files given, and the build phase still has to be dealt with separately. Note
-that `.swiftformat` excludes `.build`, our derived-data directory, so a stray
-whole-tree run does not also rewrite the checked-out SPM dependencies.
+files given, and the build phase still has to be dealt with separately.
+`.swiftformat` also excludes `.build` defensively, so that a stray whole-tree
+run cannot rewrite SPM checkouts should anything ever put them there.
 
 Guard-heavy, early-return style with `os_log(_:type:)` tracing is the house
 idiom in the DDC code. Match it.
