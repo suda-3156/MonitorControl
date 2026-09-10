@@ -1,0 +1,132 @@
+version: '3'
+
+# Machine-local signing configuration. A missing file is not an error: the vars
+# below then fall back to ad-hoc signing. See .env.example.
+dotenv: ['.env.local']
+
+vars:
+  PROJECT: MonitorControl.xcodeproj
+  SCHEME: MonitorControl
+  APP_NAME: MonitorControl.app
+  BUNDLE_ID: app.monitorcontrol.MonitorControl
+  DERIVED_DATA: .build
+  INSTALL_DIR: /Applications
+  # Upstream ships DEVELOPMENT_TEAM = 299YSU96J7, which this machine cannot sign
+  # with. Overriding on the command line keeps project.pbxproj identical to
+  # upstream, so it merges cleanly. "-" is ad-hoc signing, the fallback when
+  # .env.local says nothing.
+  SIGN_IDENTITY: '{{.MC_CODE_SIGN_IDENTITY | default "-"}}'
+  SIGN_TEAM: '{{.MC_DEVELOPMENT_TEAM | default ""}}'
+  SIGN_ARGS: >-
+    CODE_SIGN_STYLE=Manual
+    DEVELOPMENT_TEAM={{.SIGN_TEAM}}
+    CODE_SIGN_IDENTITY="{{.SIGN_IDENTITY}}"
+    PROVISIONING_PROFILE_SPECIFIER=
+
+tasks:
+  default:
+    cmds:
+      - task --list
+    silent: true
+
+  signing:
+    desc: Show the code signing identity the build tasks will use
+    cmds:
+      - cmd: |
+          echo "identity: {{.SIGN_IDENTITY}}"
+          echo "team:     {{.SIGN_TEAM}}"
+          test -f .env.local && echo "source:   .env.local" || echo "source:   built-in fallback (ad-hoc)"
+        silent: true
+
+  deps:
+    desc: Resolve the Swift Package Manager dependencies
+    cmds:
+      - xcodebuild -project {{.PROJECT}} -resolve-package-dependencies
+
+  build:
+    desc: Build the Debug configuration
+    cmds:
+      - task: xcodebuild
+        vars: { CONFIGURATION: Debug }
+
+  build:release:
+    desc: Build the Release configuration
+    cmds:
+      - task: xcodebuild
+        vars: { CONFIGURATION: Release }
+
+  xcodebuild:
+    internal: true
+    requires:
+      vars: [CONFIGURATION]
+    cmds:
+      - >-
+        xcodebuild
+        -project {{.PROJECT}}
+        -scheme {{.SCHEME}}
+        -configuration {{.CONFIGURATION}}
+        -derivedDataPath {{.DERIVED_DATA}}
+        {{.SIGN_ARGS}}
+        build
+
+  run:
+    desc: Build and launch the Debug build from the build directory
+    deps: [build]
+    cmds:
+      - task: quit
+      - open {{.DERIVED_DATA}}/Build/Products/Debug/{{.APP_NAME}}
+
+  install:
+    desc: Replace the app in /Applications with a local Release build
+    prompt: Replace {{.INSTALL_DIR}}/{{.APP_NAME}} with the local Release build?
+    deps: [build:release]
+    cmds:
+      - task: quit
+      - rm -rf "{{.INSTALL_DIR}}/{{.APP_NAME}}"
+      - ditto "{{.DERIVED_DATA}}/Build/Products/Release/{{.APP_NAME}}" "{{.INSTALL_DIR}}/{{.APP_NAME}}"
+      # Sparkle would otherwise offer to "update" this fork back to the official build.
+      - defaults write {{.BUNDLE_ID}} SUEnableAutomaticChecks -bool false
+      - cmd: |
+          echo 'Installed. Ad-hoc signing changes the code signature, so macOS treats'
+          echo 'this as a new app: re-grant Accessibility permission and remove the'
+          echo 'stale entry in System Settings -> Privacy & Security -> Accessibility.'
+        silent: true
+
+  quit:
+    desc: Quit a running MonitorControl
+    cmds:
+      - cmd: pkill -x MonitorControl
+        ignore_error: true
+
+  clean:
+    desc: Remove the build directory
+    cmds:
+      - rm -rf {{.DERIVED_DATA}}
+
+  format:
+    desc: Run SwiftFormat over the given paths (never the whole tree)
+    summary: |
+      Formats only the paths passed after --, e.g.
+
+        task format -- MonitorControl/Model/OtherDisplay.swift
+
+      Formatting the whole tree is deliberately not offered: the installed
+      SwiftFormat version does not necessarily reproduce upstream's committed
+      formatting, and the resulting diff would bury this fork's own changes.
+      See CLAUDE.md before installing SwiftFormat at all.
+    preconditions:
+      # requires.vars does not catch an empty CLI_ARGS, so check it here.
+      - sh: test -n "{{.CLI_ARGS}}"
+        msg: pass the files to format after --, e.g. task format -- MonitorControl/Model/OtherDisplay.swift
+      - sh: command -v swiftformat
+        msg: swiftformat is not installed, and CLAUDE.md explains why that is deliberate
+    cmds:
+      - swiftformat {{.CLI_ARGS}}
+
+  lint:
+    desc: Run SwiftLint
+    preconditions:
+      - sh: command -v swiftlint
+        msg: swiftlint is not installed (brew install swiftlint)
+    cmds:
+      - swiftlint

@@ -2,4 +2,4 @@
 --nospaceoperators
 --self insert
 --exponentcase lowercase
---exclude Carthage
+--exclude Carthage,.build

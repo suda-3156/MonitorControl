@@ -6,3 +6,12 @@ Carthage
 
 ### Xcode ###
 xcuserdata/
+
+### Build ###
+.build/
+
+### Environment ###
+.env
+.env.*
+!.env.example
+.direnv/
