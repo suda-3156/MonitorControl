@@ -28,6 +28,12 @@ vars:
     DEVELOPMENT_TEAM={{.SIGN_TEAM}}
     CODE_SIGN_IDENTITY="{{.SIGN_IDENTITY}}"
     PROVISIONING_PROFILE_SPECIFIER=
+  # Upstream targets macOS 10.14 (10.15 for the helper), which Xcode 26 and later
+  # refuse to build: their SDKs only go down to 12.0. Overriding on the command
+  # line keeps project.pbxproj identical to upstream. The app is only ever run on
+  # this machine, and every version check in the code is a runtime #available, so
+  # raising the floor changes nothing but what the linker accepts.
+  BUILD_ARGS: MACOSX_DEPLOYMENT_TARGET={{.MC_DEPLOYMENT_TARGET | default "12.0"}}
 
 tasks:
   default:
@@ -75,6 +81,7 @@ tasks:
         -scheme {{.SCHEME}}
         -configuration {{.CONFIGURATION}}
         {{.SIGN_ARGS}}
+        {{.BUILD_ARGS}}
         build
       - cmd: echo "Built {{.CONFIGURATION}}:{{"\t"}}{{.PRODUCTS_DIR}}/{{.APP_NAME}}"
         silent: true
