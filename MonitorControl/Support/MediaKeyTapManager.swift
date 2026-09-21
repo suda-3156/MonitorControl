@@ -13,13 +13,24 @@ class MediaKeyTapManager: MediaKeyTapDelegate {
   private var cursorDisplayID: CGDirectDisplayID = 0
   private var watchesBrightnessKeys = false
 
-  // The tap decides whether to swallow a key or to hand it to macOS by looking at
-  // keysToWatch alone, and that list is fixed when the tap is built, so the answer has to
-  // be known before the key is pressed. A brightness key is only worth taking when it
-  // would reach a display this app can drive: the built-in panel and Apple external
-  // displays such as the Studio Display are left to macOS. Note that useFineScaleBrightness
-  // overrides this in updateMediaKeyTap, so nothing is handed over while that is set.
+  // Whether a tap built right now would watch the brightness keys. The tap decides whether
+  // to swallow a key or to hand it to macOS by looking at keysToWatch alone, and that list
+  // is fixed when the tap is built, so the answer has to be known before the key is
+  // pressed. A brightness key is only worth taking when it would reach a display this app
+  // can drive: the built-in panel and Apple external displays such as the Studio Display
+  // are left to macOS.
   func shouldWatchBrightnessKeys() -> Bool {
+    guard [KeyboardBrightness.media.rawValue, KeyboardBrightness.both.rawValue].contains(prefs.integer(forKey: PrefKey.keyboardBrightness.rawValue)) else {
+      return false
+    }
+    // Disengage the keys on sleep so the MacBook screen can be controlled meanwhile
+    guard app.sleepID == 0, app.reconfigureID == 0 else {
+      return false
+    }
+    // Fine scale control keeps the keys whatever the cursor is on, as upstream has it
+    if prefs.bool(forKey: PrefKey.useFineScaleBrightness.rawValue) {
+      return true
+    }
     let multiKeyboardBrightness = prefs.integer(forKey: PrefKey.multiKeyboardBrightness.rawValue)
     if multiKeyboardBrightness == MultiKeyboardBrightness.allScreens.rawValue {
       return DisplayManager.shared.getOtherDisplays().contains { !$0.isDummy && !$0.readPrefAsBool(key: .isDisabled) }
@@ -206,14 +217,8 @@ class MediaKeyTapManager: MediaKeyTapDelegate {
     if [KeyboardVolume.media.rawValue, KeyboardVolume.both.rawValue].contains(prefs.integer(forKey: PrefKey.keyboardVolume.rawValue)) {
       keys.append(contentsOf: [.mute, .volumeUp, .volumeDown])
     }
-    // Remove brightness keys if the press would not reach a display this app drives, but
-    // only if brightness fine control is not active
-    var disengageBrightness = !self.shouldWatchBrightnessKeys()
-    // Disengage brightness keys on sleep so MacBook native screen can be controlled meanwhile
-    if app.sleepID != 0 || app.reconfigureID != 0 {
-      disengageBrightness = true
-    }
-    if disengageBrightness, !prefs.bool(forKey: PrefKey.useFineScaleBrightness.rawValue) {
+    // Remove the brightness keys unless the press would reach a display this app drives
+    if !self.shouldWatchBrightnessKeys() {
       let keysToDelete: [MediaKey] = [.brightnessUp, .brightnessDown]
       keys.removeAll { keysToDelete.contains($0) }
     }
