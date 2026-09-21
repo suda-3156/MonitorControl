@@ -112,6 +112,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
       // Only settings that are not false, 0 or "" by default are set here. Assumes pre-wiped database.
       prefs.set(true, forKey: PrefKey.appAlreadyLaunched.rawValue)
       prefs.set(true, forKey: PrefKey.SUEnableAutomaticChecks.rawValue)
+      // The volume keys belong to whichever display is the current audio output, and the
+      // menu bar icon is only useful while an external display is attached.
+      prefs.set(MultiKeyboardVolume.audioDeviceNameMatching.rawValue, forKey: PrefKey.multiKeyboardVolume.rawValue)
+      prefs.set(MenuIcon.externalOnly.rawValue, forKey: PrefKey.menuIcon.rawValue)
     }
   }
 
@@ -169,6 +173,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   private func subscribeEventListeners() {
+    self.mediaKeyTap.startWatchingCursor() // the brightness keys follow the display under the cursor
     NotificationCenter.default.addObserver(self, selector: #selector(self.audioDeviceChanged), name: Notification.Name.defaultOutputDeviceChanged, object: nil) // subscribe Audio output detector (SimplyCoreAudio)
     DistributedNotificationCenter.default.addObserver(self, selector: #selector(self.displayReconfigured), name: NSNotification.Name(rawValue: kColorSyncDisplayDeviceProfilesNotification.takeRetainedValue() as String), object: nil) // ColorSync change
     NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(self.sleepNotification), name: NSWorkspace.screensDidSleepNotification, object: nil) // sleep and wake listeners

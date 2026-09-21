@@ -399,7 +399,9 @@ class DisplayManager {
 
   func getAffectedDisplays(isBrightness: Bool = false, isVolume: Bool = false) -> [Display]? {
     var affectedDisplays: [Display]
-    let allDisplays = self.getAllDisplays()
+    // A dummy display is left out of the menu and of the display count, so it is not a
+    // target for the keys either.
+    let allDisplays = self.getAllDisplays().filter { !$0.isDummy }
     var currentDisplay: Display?
     if isBrightness {
       if prefs.integer(forKey: PrefKey.multiKeyboardBrightness.rawValue) == MultiKeyboardBrightness.allScreens.rawValue {
@@ -413,11 +415,11 @@ class DisplayManager {
         affectedDisplays = allDisplays
         return affectedDisplays
       } else if prefs.integer(forKey: PrefKey.multiKeyboardVolume.rawValue) == MultiKeyboardVolume.audioDeviceNameMatching.rawValue {
-        return self.audioControlTargetDisplays
+        return self.audioControlTargetDisplays.filter { !$0.isDummy }
       }
       currentDisplay = self.getCurrentDisplay(byFocus: false)
     }
-    if let currentDisplay = currentDisplay {
+    if let currentDisplay = currentDisplay, !currentDisplay.isDummy {
       affectedDisplays = [currentDisplay]
       if CGDisplayIsInHWMirrorSet(currentDisplay.identifier) != 0 || CGDisplayIsInMirrorSet(currentDisplay.identifier) != 0, CGDisplayMirrorsDisplay(currentDisplay.identifier) == 0 {
         for display in allDisplays where CGDisplayMirrorsDisplay(display.identifier) == currentDisplay.identifier {

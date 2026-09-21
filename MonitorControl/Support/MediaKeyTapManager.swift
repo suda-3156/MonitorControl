@@ -9,6 +9,51 @@ import os.log
 class MediaKeyTapManager: MediaKeyTapDelegate {
   var mediaKeyTap: MediaKeyTap?
   var keyRepeatTimers: [MediaKey: Timer] = [:]
+  private var cursorMonitor: Any?
+  private var cursorDisplayID: CGDirectDisplayID = 0
+  private var watchesBrightnessKeys = false
+
+  // The tap decides whether to swallow a key or to hand it to macOS by looking at
+  // keysToWatch alone, and that list is fixed when the tap is built, so the answer has to
+  // be known before the key is pressed. A brightness key is only worth taking when it
+  // would reach a display this app can drive: the built-in panel and Apple external
+  // displays such as the Studio Display are left to macOS. Note that useFineScaleBrightness
+  // overrides this in updateMediaKeyTap, so nothing is handed over while that is set.
+  func shouldWatchBrightnessKeys() -> Bool {
+    let multiKeyboardBrightness = prefs.integer(forKey: PrefKey.multiKeyboardBrightness.rawValue)
+    if multiKeyboardBrightness == MultiKeyboardBrightness.allScreens.rawValue {
+      return DisplayManager.shared.getOtherDisplays().contains { !$0.isDummy && !$0.readPrefAsBool(key: .isDisabled) }
+    }
+    guard let currentDisplay = DisplayManager.shared.getCurrentDisplay(byFocus: multiKeyboardBrightness == MultiKeyboardBrightness.focusInsteadOfMouse.rawValue) as? OtherDisplay else {
+      return false
+    }
+    return !currentDisplay.isDummy && !currentDisplay.readPrefAsBool(key: .isDisabled)
+  }
+
+  // Since the tap answers the question above at build time, it has to be rebuilt whenever
+  // the cursor moves to a display of a different kind. This runs on every mouse move, so
+  // it returns as early as it can.
+  func startWatchingCursor() {
+    guard self.cursorMonitor == nil else {
+      return
+    }
+    self.cursorMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged, .rightMouseDragged]) { [weak self] _ in
+      self?.cursorMoved()
+    }
+  }
+
+  private func cursorMoved() {
+    let mouseLocation = NSEvent.mouseLocation
+    guard let screen = NSScreen.screens.first(where: { NSMouseInRect(mouseLocation, $0.frame, false) }), screen.displayID != self.cursorDisplayID else {
+      return
+    }
+    self.cursorDisplayID = screen.displayID
+    guard self.shouldWatchBrightnessKeys() != self.watchesBrightnessKeys else {
+      return
+    }
+    os_log("Cursor moved to a display of a different kind, rebuilding the media key tap", type: .info)
+    app.updateMediaKeyTap()
+  }
 
   func handle(mediaKey: MediaKey, event: KeyEvent?, modifiers: NSEvent.ModifierFlags?) {
     let isPressed = event?.keyPressed ?? true
@@ -110,7 +155,12 @@ class MediaKeyTapManager: MediaKeyTapDelegate {
     for display in affectedDisplays where !display.readPrefAsBool(key: .isDisabled) {
       switch mediaKey {
       case .brightnessUp:
-        if isContrast, let otherDisplay = display as? OtherDisplay {
+        if isContrast {
+          // Contrast exists only on a display with working DDC. On anything else the key
+          // does nothing instead of falling back to brightness.
+          guard let otherDisplay = display as? OtherDisplay else {
+            continue
+          }
           otherDisplay.stepContrast(isUp: mediaKey == .brightnessUp, isSmallIncrement: isSmallIncrement)
         } else {
           var isAnyDisplayInSwAfterBrightnessMode = false
@@ -122,7 +172,10 @@ class MediaKeyTapManager: MediaKeyTapDelegate {
           }
         }
       case .brightnessDown:
-        if isContrast, let otherDisplay = display as? OtherDisplay {
+        if isContrast {
+          guard let otherDisplay = display as? OtherDisplay else {
+            continue
+          }
           otherDisplay.stepContrast(isUp: mediaKey == .brightnessUp, isSmallIncrement: isSmallIncrement)
         } else {
           display.stepBrightness(isUp: mediaKey == .brightnessUp, isSmallIncrement: isSmallIncrement)
@@ -153,11 +206,9 @@ class MediaKeyTapManager: MediaKeyTapDelegate {
     if [KeyboardVolume.media.rawValue, KeyboardVolume.both.rawValue].contains(prefs.integer(forKey: PrefKey.keyboardVolume.rawValue)) {
       keys.append(contentsOf: [.mute, .volumeUp, .volumeDown])
     }
-    // Remove brightness keys if no external displays are connected, but only if brightness fine control is not active
-    var disengageBrightness = true
-    for display in DisplayManager.shared.getAllDisplays() where !display.isBuiltIn() {
-      disengageBrightness = false
-    }
+    // Remove brightness keys if the press would not reach a display this app drives, but
+    // only if brightness fine control is not active
+    var disengageBrightness = !self.shouldWatchBrightnessKeys()
     // Disengage brightness keys on sleep so MacBook native screen can be controlled meanwhile
     if app.sleepID != 0 || app.reconfigureID != 0 {
       disengageBrightness = true
@@ -177,6 +228,7 @@ class MediaKeyTapManager: MediaKeyTapDelegate {
         keys.removeAll { keysToDelete.contains($0) }
       }
     }
+    self.watchesBrightnessKeys = keys.contains(.brightnessUp)
     self.mediaKeyTap?.stop()
     // returning an empty array listens for all mediakeys in MediaKeyTap
     if keys.count > 0 {
