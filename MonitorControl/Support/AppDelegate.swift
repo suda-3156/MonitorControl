@@ -375,9 +375,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
   }
   
+  // Hiding the item makes AppKit forget where it sits in the menu bar, so it comes back
+  // at the far left, which is where menu bar managers keep their hidden section. AppKit
+  // drops the saved position inside the setter, so writing it back afterwards sticks.
   func updateStatusItemVisibility(_ visible: Bool) {
+    let positionKey = "NSStatusItem Preferred Position \(self.statusItem.autosaveName ?? "")"
+    let position = prefs.object(forKey: positionKey)
     statusItemVisibilityChangedByUser = false
     statusItem.isVisible = visible
     statusItemVisibilityChangedByUser = true
+    if !visible, let position {
+      prefs.set(position, forKey: positionKey)
+    }
   }
 }
