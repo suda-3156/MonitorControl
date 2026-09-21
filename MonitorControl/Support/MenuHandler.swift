@@ -38,8 +38,9 @@ class MenuHandler: NSMenu, NSMenuDelegate {
     DispatchQueue.global(qos: .userInitiated).async {
       defer { DispatchQueue.main.async { self.isRefreshing = false } }
       for display in DisplayManager.shared.getOtherDisplays() {
-        // Only commands with a live slider are read, so a hidden slider costs nothing.
-        for command in [Command.brightness, .contrast, .audioSpeakerVolume] where display.sliderHandler[command] != nil {
+        // Only commands with a slider in the menu are read, so a slider that lives only
+        // in the centre popup costs nothing here.
+        for command in [Command.brightness, .contrast, .audioSpeakerVolume] where display.sliderHandler[command]?.isInMenu ?? false {
           display.refreshValueFromDisplay(command: command)
         }
       }
@@ -186,13 +187,13 @@ class MenuHandler: NSMenu, NSMenuDelegate {
   }
 
   func addCombinedDisplayMenuBlock() {
-    if let sliderHandler = self.combinedSliderHandler[.audioSpeakerVolume] {
+    if let sliderHandler = self.combinedSliderHandler[.audioSpeakerVolume], sliderHandler.isInMenu {
       self.addSliderItem(monitorSubMenu: self, sliderHandler: sliderHandler)
     }
-    if let sliderHandler = self.combinedSliderHandler[.contrast] {
+    if let sliderHandler = self.combinedSliderHandler[.contrast], sliderHandler.isInMenu {
       self.addSliderItem(monitorSubMenu: self, sliderHandler: sliderHandler)
     }
-    if let sliderHandler = self.combinedSliderHandler[.brightness] {
+    if let sliderHandler = self.combinedSliderHandler[.brightness], sliderHandler.isInMenu {
       self.addSliderItem(monitorSubMenu: self, sliderHandler: sliderHandler)
     }
   }
@@ -201,20 +202,35 @@ class MenuHandler: NSMenu, NSMenuDelegate {
     os_log("Addig menu items for display %{public}@", type: .info, "\(display.identifier)")
     let monitorSubMenu: NSMenu = asSubMenu ? NSMenu() : self
     var addedSliderHandlers: [SliderHandler] = []
+    // A handler is built whenever the display has the command at all, because the centre
+    // popup shows sliders the menu is set to hide. What the settings decide is only
+    // whether the handler also gets a view in the menu.
     display.sliderHandler[.audioSpeakerVolume] = nil
-    if let otherDisplay = display as? OtherDisplay, !otherDisplay.isSw(), !display.readPrefAsBool(key: .unavailableDDC, for: .audioSpeakerVolume), !prefs.bool(forKey: PrefKey.hideVolume.rawValue) {
+    if let otherDisplay = display as? OtherDisplay, !otherDisplay.isSw(), !display.readPrefAsBool(key: .unavailableDDC, for: .audioSpeakerVolume) {
       let title = NSLocalizedString("Volume", comment: "Shown in menu")
-      addedSliderHandlers.append(self.setupMenuSliderHandler(command: .audioSpeakerVolume, display: display, title: title))
+      let sliderHandler = self.setupMenuSliderHandler(command: .audioSpeakerVolume, display: display, title: title)
+      if !prefs.bool(forKey: PrefKey.hideVolume.rawValue) {
+        sliderHandler.isInMenu = true
+        addedSliderHandlers.append(sliderHandler)
+      }
     }
     display.sliderHandler[.contrast] = nil
-    if let otherDisplay = display as? OtherDisplay, !otherDisplay.isSw(), !display.readPrefAsBool(key: .unavailableDDC, for: .contrast), prefs.bool(forKey: PrefKey.showContrast.rawValue) {
+    if let otherDisplay = display as? OtherDisplay, !otherDisplay.isSw(), !display.readPrefAsBool(key: .unavailableDDC, for: .contrast) {
       let title = NSLocalizedString("Contrast", comment: "Shown in menu")
-      addedSliderHandlers.append(self.setupMenuSliderHandler(command: .contrast, display: display, title: title))
+      let sliderHandler = self.setupMenuSliderHandler(command: .contrast, display: display, title: title)
+      if prefs.bool(forKey: PrefKey.showContrast.rawValue) {
+        sliderHandler.isInMenu = true
+        addedSliderHandlers.append(sliderHandler)
+      }
     }
     display.sliderHandler[.brightness] = nil
-    if !display.readPrefAsBool(key: .unavailableDDC, for: .brightness), !prefs.bool(forKey: PrefKey.hideBrightness.rawValue) {
+    if !display.readPrefAsBool(key: .unavailableDDC, for: .brightness) {
       let title = NSLocalizedString("Brightness", comment: "Shown in menu")
-      addedSliderHandlers.append(self.setupMenuSliderHandler(command: .brightness, display: display, title: title))
+      let sliderHandler = self.setupMenuSliderHandler(command: .brightness, display: display, title: title)
+      if !prefs.bool(forKey: PrefKey.hideBrightness.rawValue) {
+        sliderHandler.isInMenu = true
+        addedSliderHandlers.append(sliderHandler)
+      }
     }
     if prefs.integer(forKey: PrefKey.multiSliders.rawValue) != MultiSliders.combine.rawValue {
       self.addDisplayMenuBlock(addedSliderHandlers: addedSliderHandlers, blockName: display.readPrefAsString(key: .friendlyName) != "" ? display.readPrefAsString(key: .friendlyName) : display.name, monitorSubMenu: monitorSubMenu, numOfDisplays: numOfDisplays, asSubMenu: asSubMenu)

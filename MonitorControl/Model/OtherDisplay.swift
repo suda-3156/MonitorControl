@@ -157,7 +157,7 @@ class OtherDisplay: Display {
     }
     // A read takes about 70 ms, so the user might have grabbed the slider in the meantime.
     // Dropping the value is better than yanking the knob out from under the pointer.
-    guard let sliderHandler = self.sliderHandler[command], !(sliderHandler.slider?.isTracking() ?? false) else {
+    guard let sliderHandler = self.sliderHandler[command], !sliderHandler.isTracking() else {
       return
     }
     self.processCurrentDDCValue(isReadFromDisplay: true, command: command, firstrun: false, currentDDCValue: ddcValues.current)

@@ -4,14 +4,32 @@ import Cocoa
 import os.log
 
 class SliderHandler {
-  var slider: MCSlider?
-  var view: NSView?
-  var percentageBox: NSTextField?
+  // A handler owns the value and the write path, and each container it appears in gets a
+  // view of its own, because an NSView has exactly one superview. The first one belongs to
+  // the menu, the centre popup asks for another.
+  class SliderView {
+    let view: NSView
+    let slider: MCSlider
+    let percentageBox: NSTextField?
+    let icon: ClickThroughImageView?
+
+    init(view: NSView, slider: MCSlider, percentageBox: NSTextField?, icon: ClickThroughImageView?) {
+      self.view = view
+      self.slider = slider
+      self.percentageBox = percentageBox
+      self.icon = icon
+    }
+  }
+
+  var sliderViews: [SliderView] = []
   var displays: [Display] = []
   var values: [CGDirectDisplayID: Float] = [:]
   var title: String
   let command: Command
-  var icon: ClickThroughImageView?
+  // Only a handler shown in the menu is worth a DDC read when the menu opens.
+  var isInMenu = false
+
+  var view: NSView? { self.sliderViews.first?.view }
 
   class MCSliderCell: NSSliderCell {
     let knobFillColor = NSColor(white: 1, alpha: 1)
@@ -187,6 +205,12 @@ class SliderHandler {
       return false
     }
 
+    // The centre popup never becomes the key window, so without this the first click on it
+    // would only be spent on bringing the window forward.
+    override func acceptsFirstMouse(for _: NSEvent?) -> Bool {
+      true
+    }
+
     //  Credits for this class go to @thompsonate - https://github.com/thompsonate/Scrollable-NSSlider
     override func scrollWheel(with event: NSEvent) {
       guard self.isEnabled else { return }
@@ -219,55 +243,77 @@ class SliderHandler {
   init(display: Display?, command: Command, title: String = "", position _: Int = 0) {
     self.command = command
     self.title = title
+    _ = self.makeSliderView()
+    if let displayToAppend = display {
+      self.addDisplay(displayToAppend)
+    }
+  }
+
+  // The menu keeps the sizes this was written with; the popup passes its own width and a
+  // tint that is readable on a dark background.
+  func makeSliderView(width: CGFloat = 180, tint: NSColor = NSColor.black.withAlphaComponent(0.6)) -> SliderView {
     let slider = SliderHandler.MCSlider(value: 0, minValue: 0, maxValue: 1, target: self, action: #selector(SliderHandler.valueChanged))
     let showPercent = prefs.bool(forKey: PrefKey.enableSliderPercent.rawValue)
     slider.isEnabled = true
     slider.setNumOfCustomTickmarks(prefs.bool(forKey: PrefKey.showTickMarks.rawValue) ? 5 : 0)
-    self.slider = slider
+    var percentageBox: NSTextField?
+    var icon: SliderHandler.ClickThroughImageView?
+    let view: NSView
     if !DEBUG_MACOS10, #available(macOS 11.0, *) {
-      slider.frame.size.width = 180
+      slider.frame.size.width = width
       slider.frame.origin = NSPoint(x: 15, y: 5)
-      let view = NSView(frame: NSRect(x: 0, y: 0, width: slider.frame.width + 30 + (showPercent ? 38 : 0), height: slider.frame.height + 14))
+      view = NSView(frame: NSRect(x: 0, y: 0, width: slider.frame.width + 30 + (showPercent ? 38 : 0), height: slider.frame.height + 14))
       view.frame.origin = NSPoint(x: 12, y: 0)
       var iconName = "circle.dashed"
-      switch command {
+      switch self.command {
       case .audioSpeakerVolume: iconName = "speaker.wave.2.fill"
       case .brightness: iconName = "sun.max.fill"
       case .contrast: iconName = "circle.lefthalf.fill"
       default: break
       }
-      let icon = SliderHandler.ClickThroughImageView()
-      icon.image = NSImage(systemSymbolName: iconName, accessibilityDescription: title)
-      icon.contentTintColor = NSColor.black.withAlphaComponent(0.6)
-      icon.frame = NSRect(x: view.frame.origin.x + 6.5, y: view.frame.origin.y + 13, width: 15, height: 15)
-      icon.imageAlignment = .alignCenter
+      let sliderIcon = SliderHandler.ClickThroughImageView()
+      sliderIcon.image = NSImage(systemSymbolName: iconName, accessibilityDescription: self.title)
+      sliderIcon.contentTintColor = tint
+      sliderIcon.frame = NSRect(x: view.frame.origin.x + 6.5, y: view.frame.origin.y + 13, width: 15, height: 15)
+      sliderIcon.imageAlignment = .alignCenter
       view.addSubview(slider)
-      view.addSubview(icon)
-      self.icon = icon
+      view.addSubview(sliderIcon)
+      icon = sliderIcon
       if showPercent {
-        let percentageBox = NSTextField(frame: NSRect(x: 15 + slider.frame.size.width - 2, y: 17, width: 40, height: 12))
-        self.setupPercentageBox(percentageBox)
-        self.percentageBox = percentageBox
-        view.addSubview(percentageBox)
+        let box = NSTextField(frame: NSRect(x: 15 + slider.frame.size.width - 2, y: 17, width: 40, height: 12))
+        self.setupPercentageBox(box)
+        percentageBox = box
+        view.addSubview(box)
       }
-      self.view = view
     } else {
-      slider.frame.size.width = 180
+      slider.frame.size.width = width
       slider.frame.origin = NSPoint(x: 15, y: 5)
-      let view = NSView(frame: NSRect(x: 0, y: 0, width: slider.frame.width + 30 + (showPercent ? 38 : 0), height: slider.frame.height + 10))
+      view = NSView(frame: NSRect(x: 0, y: 0, width: slider.frame.width + 30 + (showPercent ? 38 : 0), height: slider.frame.height + 10))
       view.addSubview(slider)
       if showPercent {
-        let percentageBox = NSTextField(frame: NSRect(x: 15 + slider.frame.size.width - 2, y: 18, width: 40, height: 12))
-        self.setupPercentageBox(percentageBox)
-        self.percentageBox = percentageBox
-        view.addSubview(percentageBox)
+        let box = NSTextField(frame: NSRect(x: 15 + slider.frame.size.width - 2, y: 18, width: 40, height: 12))
+        self.setupPercentageBox(box)
+        percentageBox = box
+        view.addSubview(box)
       }
-      self.view = view
     }
     slider.maxValue = 1
-    if let displayToAppend = display {
-      self.addDisplay(displayToAppend)
+    let sliderView = SliderView(view: view, slider: slider, percentageBox: percentageBox, icon: icon)
+    self.sliderViews.append(sliderView)
+    if self.sliderViews.count > 1 {
+      // A view built later has to catch up with the value the handler already holds.
+      self.setValue(self.sliderViews[0].slider.floatValue)
     }
+    return sliderView
+  }
+
+  func removeSliderView(_ sliderView: SliderView) {
+    self.sliderViews.removeAll { $0 === sliderView }
+    sliderView.view.removeFromSuperview()
+  }
+
+  func isTracking() -> Bool {
+    self.sliderViews.contains { $0.slider.isTracking() }
   }
 
   func addDisplay(_ display: Display) {
@@ -327,18 +373,24 @@ class SliderHandler {
         slider.floatValue = value
       }
     }
-    if self.percentageBox == self.percentageBox {
-      self.percentageBox?.stringValue = "" + String(Int(value * 100)) + "%"
-    }
     for display in self.displays {
-      slider.setHighlightItem(display.identifier, value: value)
       if self.command == .brightness, let appleDisplay = display as? AppleDisplay {
         _ = appleDisplay.setBrightness(value)
       } else if let otherDisplay = display as? OtherDisplay {
         self.valueChangedOtherDisplay(otherDisplay: otherDisplay, value: value)
       }
+      self.values[display.identifier] = value
     }
-    slider.setDisplayHighlightItems(false)
+    // Every display this handler drives now holds the same value, and every container has
+    // to show it, including the one that was not dragged.
+    for sliderView in self.sliderViews {
+      sliderView.slider.floatValue = value
+      for display in self.displays {
+        sliderView.slider.setHighlightItem(display.identifier, value: value)
+      }
+      sliderView.slider.setDisplayHighlightItems(false)
+      sliderView.percentageBox?.stringValue = "" + String(Int(value * 100)) + "%"
+    }
   }
 
   func updateIcon() {
@@ -360,34 +412,24 @@ class SliderHandler {
   }
 
   func setValue(_ value: Float, displayID: CGDirectDisplayID = 0) {
-    if let slider = self.slider {
+    if displayID != 0 {
+      self.values[displayID] = value
+    }
+    var maxVal: Float = 0
+    var minVal: Float = 1
+    for val in self.values.values {
+      maxVal = max(maxVal, val)
+      minVal = min(minVal, val)
+    }
+    let isSpread = abs(maxVal - minVal) > 0.001
+    self.updateIcon()
+    for sliderView in self.sliderViews {
       if displayID != 0 {
-        self.values[displayID] = value
-        slider.setHighlightItem(displayID, value: value)
+        sliderView.slider.setHighlightItem(displayID, value: value)
       }
-      var sumVal: Float = 0
-      var maxVal: Float = 0
-      var minVal: Float = 1
-      var num = 0
-      for key in self.values.keys {
-        if let val = values[key] {
-          sumVal += val
-          maxVal = max(maxVal, val)
-          minVal = min(minVal, val)
-          num += 1
-        }
-      }
-      // let average = sumVal / Float(num)
-      slider.floatValue = value
-      self.updateIcon()
-      if abs(maxVal - minVal) > 0.001 {
-        slider.setDisplayHighlightItems(true)
-      } else {
-        slider.setDisplayHighlightItems(false)
-      }
-      if self.percentageBox == self.percentageBox {
-        self.percentageBox?.stringValue = "\(String(format: "%.0f%%", Double(value) * 100))"
-      }
+      sliderView.slider.floatValue = value
+      sliderView.slider.setDisplayHighlightItems(isSpread)
+      sliderView.percentageBox?.stringValue = "\(String(format: "%.0f%%", Double(value) * 100))"
     }
   }
 }
