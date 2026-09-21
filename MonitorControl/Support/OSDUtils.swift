@@ -22,6 +22,11 @@ class OSDUtils: NSObject {
   }
 
   static func showOsd(displayID: CGDirectDisplayID, command: Command, value: Float, maxValue: Float = 1, roundChiclet: Bool = false, lock: Bool = false) {
+    // A display this app drives shows its own popup, with sliders that can be grabbed,
+    // instead of the system HUD.
+    if app.popup.handleOsd(displayID: displayID, command: command) {
+      return
+    }
     guard let manager = OSDManager.sharedManager() as? OSDManager else {
       return
     }

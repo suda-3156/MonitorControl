@@ -53,6 +53,7 @@ class MenuHandler: NSMenu, NSMenuDelegate {
 
   func updateMenus(dontClose: Bool = false) {
     os_log("Menu update initiated", type: .info)
+    app.popup.hide() // the slider handlers below it are about to be replaced
     if !dontClose {
       self.cancelTrackingWithoutAnimation()
     }
