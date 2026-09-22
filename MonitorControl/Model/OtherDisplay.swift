@@ -143,9 +143,9 @@ class OtherDisplay: Display {
     }
   }
 
-  // Re-reads the panel and updates prefs and the slider. Unlike setupCurrentAndMaxValues
-  // this never writes to the display, so it is safe to run whenever the menu opens.
-  // Must not be called on the main thread: readDDCValues syncs on globalDDCQueue.
+  /// Re-reads the panel and updates prefs and the slider. Unlike setupCurrentAndMaxValues
+  /// this never writes to the display, so it is safe to run whenever the menu opens.
+  /// Must not be called on the main thread: readDDCValues syncs on globalDDCQueue.
   func refreshValueFromDisplay(command: Command) {
     guard !self.isSw(), !self.smoothBrightnessRunning, !self.readPrefAsBool(key: .unavailableDDC, for: command), self.pollingCount != 0, !app.safeMode else {
       return

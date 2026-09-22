@@ -27,9 +27,9 @@ class MenuHandler: NSMenu, NSMenuDelegate {
     self.refreshDisplayValues()
   }
 
-  // The panel can be adjusted with its own buttons, so the saved values go stale.
-  // Re-read them whenever the menu is shown. A DDC read costs about 70 ms per
-  // command, hence the background queue: the menu itself must appear instantly.
+  /// The panel can be adjusted with its own buttons, so the saved values go stale.
+  /// Re-read them whenever the menu is shown. A DDC read costs about 70 ms per
+  /// command, hence the background queue: the menu itself must appear instantly.
   func refreshDisplayValues() {
     guard !self.isRefreshing else {
       return

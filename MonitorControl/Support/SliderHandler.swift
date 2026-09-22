@@ -4,9 +4,9 @@ import Cocoa
 import os.log
 
 class SliderHandler {
-  // A handler owns the value and the write path, and each container it appears in gets a
-  // view of its own, because an NSView has exactly one superview. The first one belongs to
-  // the menu, the centre popup asks for another.
+  /// A handler owns the value and the write path, and each container it appears in gets a
+  /// view of its own, because an NSView has exactly one superview. The first one belongs to
+  /// the menu, the centre popup asks for another.
   class SliderView {
     let view: NSView
     let slider: MCSlider
@@ -26,10 +26,12 @@ class SliderHandler {
   var values: [CGDirectDisplayID: Float] = [:]
   var title: String
   let command: Command
-  // Only a handler shown in the menu is worth a DDC read when the menu opens.
+  /// Only a handler shown in the menu is worth a DDC read when the menu opens.
   var isInMenu = false
 
-  var view: NSView? { self.sliderViews.first?.view }
+  var view: NSView? {
+    self.sliderViews.first?.view
+  }
 
   class MCSliderCell: NSSliderCell {
     let knobFillColor = NSColor(white: 1, alpha: 1)
@@ -249,8 +251,8 @@ class SliderHandler {
     }
   }
 
-  // The menu keeps the sizes this was written with; the popup passes its own width and a
-  // tint that is readable on a dark background.
+  /// The menu keeps the sizes this was written with; the popup passes its own width and a
+  /// tint that is readable on a dark background.
   func makeSliderView(width: CGFloat = 180, tint: NSColor = NSColor.black.withAlphaComponent(0.6)) -> SliderView {
     let slider = SliderHandler.MCSlider(value: 0, minValue: 0, maxValue: 1, target: self, action: #selector(SliderHandler.valueChanged))
     let showPercent = prefs.bool(forKey: PrefKey.enableSliderPercent.rawValue)

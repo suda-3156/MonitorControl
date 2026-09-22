@@ -13,12 +13,12 @@ class MediaKeyTapManager: MediaKeyTapDelegate {
   private var cursorDisplayID: CGDirectDisplayID = 0
   private var watchesBrightnessKeys = false
 
-  // Whether a tap built right now would watch the brightness keys. The tap decides whether
-  // to swallow a key or to hand it to macOS by looking at keysToWatch alone, and that list
-  // is fixed when the tap is built, so the answer has to be known before the key is
-  // pressed. A brightness key is only worth taking when it would reach a display this app
-  // can drive: the built-in panel and Apple external displays such as the Studio Display
-  // are left to macOS.
+  /// Whether a tap built right now would watch the brightness keys. The tap decides whether
+  /// to swallow a key or to hand it to macOS by looking at keysToWatch alone, and that list
+  /// is fixed when the tap is built, so the answer has to be known before the key is
+  /// pressed. A brightness key is only worth taking when it would reach a display this app
+  /// can drive: the built-in panel and Apple external displays such as the Studio Display
+  /// are left to macOS.
   func shouldWatchBrightnessKeys() -> Bool {
     guard [KeyboardBrightness.media.rawValue, KeyboardBrightness.both.rawValue].contains(prefs.integer(forKey: PrefKey.keyboardBrightness.rawValue)) else {
       return false
@@ -41,9 +41,9 @@ class MediaKeyTapManager: MediaKeyTapDelegate {
     return !currentDisplay.isDummy && !currentDisplay.readPrefAsBool(key: .isDisabled)
   }
 
-  // Since the tap answers the question above at build time, it has to be rebuilt whenever
-  // the cursor moves to a display of a different kind. This runs on every mouse move, so
-  // it returns as early as it can.
+  /// Since the tap answers the question above at build time, it has to be rebuilt whenever
+  /// the cursor moves to a display of a different kind. This runs on every mouse move, so
+  /// it returns as early as it can.
   func startWatchingCursor() {
     guard self.cursorMonitor == nil else {
       return

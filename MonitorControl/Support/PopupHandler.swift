@@ -3,10 +3,10 @@
 import Cocoa
 import os.log
 
-// The centre popup: the sliders of the display a key press just went to, shown in the
-// middle of that display. It shares its sliders with the menu, so both show the same value
-// and write through the same path (see SliderHandler). It never takes focus and never
-// reads DDC: what it shows is what the app already holds.
+/// The centre popup: the sliders of the display a key press just went to, shown in the
+/// middle of that display. It shares its sliders with the menu, so both show the same value
+/// and write through the same path (see SliderHandler). It never takes focus and never
+/// reads DDC: what it shows is what the app already holds.
 class PopupHandler {
   private let sliderWidth: CGFloat = 220
   private let margin: CGFloat = 13
@@ -20,10 +20,10 @@ class PopupHandler {
   private var hideTimer: Timer?
   private var monitors: [Any] = []
 
-  // Entry point from OSDUtils: for a display this app drives itself, the popup takes the
-  // place of the system HUD. Returning true means the HUD is not shown. showOsd is also
-  // called off the main thread (the sw brightness animation), hence the dispatch below:
-  // only the window work has to be on the main thread.
+  /// Entry point from OSDUtils: for a display this app drives itself, the popup takes the
+  /// place of the system HUD. Returning true means the HUD is not shown. showOsd is also
+  /// called off the main thread (the sw brightness animation), hence the dispatch below:
+  /// only the window work has to be on the main thread.
   func handleOsd(displayID: CGDirectDisplayID, command: Command) -> Bool {
     guard !app.safeMode, let display = DisplayManager.shared.getAllDisplays().first(where: { $0.identifier == displayID }) else {
       return false
@@ -170,9 +170,9 @@ class PopupHandler {
     }
   }
 
-  // The panel is never the key window, so Escape and clicks elsewhere only arrive through
-  // event monitors. Accessibility is already required for the media keys, and the global
-  // monitors need nothing beyond it.
+  /// The panel is never the key window, so Escape and clicks elsewhere only arrive through
+  /// event monitors. Accessibility is already required for the media keys, and the global
+  /// monitors need nothing beyond it.
   private func startMonitoring() {
     let mouseEvents: NSEvent.EventTypeMask = [.leftMouseDown, .rightMouseDown, .otherMouseDown]
     if let monitor = NSEvent.addGlobalMonitorForEvents(matching: mouseEvents, handler: { [weak self] _ in self?.hide() }) {
