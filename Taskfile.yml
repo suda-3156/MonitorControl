@@ -134,16 +134,16 @@ tasks:
 
         task format -- MonitorControl/Model/OtherDisplay.swift
 
-      Formatting the whole tree is deliberately not offered: the installed
-      SwiftFormat version does not necessarily reproduce upstream's committed
-      formatting, and the resulting diff would bury this fork's own changes.
-      See CLAUDE.md before installing SwiftFormat at all.
+      Formatting the whole tree is deliberately not offered: upstream pins no
+      SwiftFormat version, so the installed one does not necessarily reproduce
+      upstream's committed formatting, and the resulting diff would bury this
+      fork's own changes. See CLAUDE.md.
     preconditions:
       # requires.vars does not catch an empty CLI_ARGS, so check it here.
       - sh: test -n "{{.CLI_ARGS}}"
         msg: pass the files to format after --, e.g. task format -- MonitorControl/Model/OtherDisplay.swift
       - sh: command -v swiftformat
-        msg: swiftformat is not installed, and CLAUDE.md explains why that is deliberate
+        msg: swiftformat is not installed, see CLAUDE.md for what installing it does to every build
     cmds:
       - swiftformat {{.CLI_ARGS}}
 

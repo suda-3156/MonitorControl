@@ -78,13 +78,19 @@ Follow the surrounding code. The repository config is authoritative:
 - `.swiftlint.yml`: `line_length`, `identifier_name` and a few other rules are
   disabled; do not add line breaks or rename things to satisfy rules that this
   project turns off.
-- SwiftLint and SwiftFormat are not installed, so their build phases only emit
-  a warning. Formatting is therefore hand-maintained: match the config above by
-  eye, do not reach for the tool.
+- SwiftLint is not installed, so its build phase only emits a warning.
 
-**Do not install SwiftFormat on this machine** (and do not suggest installing it
-as a way to fix formatting). The `[Format] Run SwiftFormat` build phase is not
-gated on dependency analysis and runs
+Formatting is SwiftFormat's job, not something to match by eye. Upstream ran the
+tool over the whole repository in v4.4.0, so the committed tree is SwiftFormat
+output and a run over the files a change touches produces no unrelated churn.
+Run `task format -- <paths>` over the files the change touches before
+committing. One visible consequence of that pass: a comment attached to a single
+declaration is a `///` doc comment, while a comment heading a group of
+declarations stays `//`.
+
+SwiftFormat is not installed on this machine by default, and installing it has a
+side effect worth knowing about. The `[Format] Run SwiftFormat` build phase is
+not gated on dependency analysis and runs
 
 ```sh
 export PATH="$PATH:/opt/homebrew/bin"
@@ -92,16 +98,14 @@ if which swiftformat >/dev/null; then swiftformat . ; fi
 ```
 
 from the project directory on **every** build, including `task build`. The
-moment the binary exists on `PATH`, an ordinary build silently rewrites the
-whole working tree with whatever the installed SwiftFormat version produces.
-Upstream's committed code is not necessarily identical to that output, so the
-fork's own diff would be buried under thousands of unrelated lines. Nothing in
-the app fails when the tool is absent.
+moment the binary exists on `PATH`, an ordinary build reformats the whole
+working tree. Upstream pins no SwiftFormat version, so a version newer than the
+one upstream ran can still rewrite files the change never touched: check
+`git status` after a build and keep that reformat out of the commit, or land it
+on its own. Nothing in the app fails when the tool is absent.
 
-If it ever has to be installed anyway: `task format -- <paths>` formats only the
-files given, and the build phase still has to be dealt with separately.
-`.swiftformat` also excludes `.build` defensively, so that a stray whole-tree
-run cannot rewrite SPM checkouts should anything ever put them there.
+`.swiftformat` also excludes `.build` defensively, so that a stray whole-tree run
+cannot rewrite SPM checkouts should anything ever put them there.
 
 Guard-heavy, early-return style with `os_log(_:type:)` tracing is the house
 idiom in the DDC code. Match it.
