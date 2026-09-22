@@ -205,13 +205,13 @@ class SliderHandler {
       return false
     }
 
-    // The centre popup never becomes the key window, so without this the first click on it
-    // would only be spent on bringing the window forward.
+    /// The centre popup never becomes the key window, so without this the first click on it
+    /// would only be spent on bringing the window forward.
     override func acceptsFirstMouse(for _: NSEvent?) -> Bool {
       true
     }
 
-    //  Credits for this class go to @thompsonate - https://github.com/thompsonate/Scrollable-NSSlider
+    ///  Credits for this class go to @thompsonate - https://github.com/thompsonate/Scrollable-NSSlider
     override func scrollWheel(with event: NSEvent) {
       guard self.isEnabled else { return }
       let range = Float(self.maxValue - self.minValue)
