@@ -80,29 +80,39 @@ Follow the surrounding code. The repository config is authoritative:
   project turns off.
 - SwiftLint is not installed, so its build phase only emits a warning.
 
-Formatting is SwiftFormat's job, not something to match by eye. Upstream ran the
-tool over the whole repository in v4.4.0, so the committed tree is SwiftFormat
-output and a run over the files a change touches produces no unrelated churn.
-Run `task format -- <paths>` over the files the change touches before
-committing. One visible consequence of that pass: a comment attached to a single
-declaration is a `///` doc comment, while a comment heading a group of
-declarations stays `//`.
+Formatting is SwiftFormat's job, not something to match by eye. Upstream ran
+nicklockwood/SwiftFormat over the whole repository in v4.4.0, so the committed
+tree is the tool's own output. Run `task format -- <paths>` over the files a
+change touches before committing. Two rules account for nearly everything the
+tool wants in this codebase: `docComments` turns a comment attached to a single
+declaration into `///` (a comment heading a group of declarations stays `//`),
+and `wrapPropertyBodies` puts a one-line accessor body on its own line.
 
-SwiftFormat is not installed on this machine by default, and installing it has a
-side effect worth knowing about. The `[Format] Run SwiftFormat` build phase is
-not gated on dependency analysis and runs
+`mise.toml` pins the version, which is the piece upstream lacks. 0.63.0 was
+checked against upstream's tree and reformats nothing there, so the pin is what
+keeps a `task format` run from touching code the change did not. Bump it
+deliberately, and check `git status` after the first build on the new version.
+
+The `[Format] Run SwiftFormat` build phase is not gated on dependency analysis
+and runs
 
 ```sh
 export PATH="$PATH:/opt/homebrew/bin"
 if which swiftformat >/dev/null; then swiftformat . ; fi
 ```
 
-from the project directory on **every** build, including `task build`. The
-moment the binary exists on `PATH`, an ordinary build reformats the whole
-working tree. Upstream pins no SwiftFormat version, so a version newer than the
-one upstream ran can still rewrite files the change never touched: check
-`git status` after a build and keep that reformat out of the commit, or land it
-on its own. Nothing in the app fails when the tool is absent.
+from the project directory on **every** build, so whether a build reformats the
+whole tree depends on where `swiftformat` sits:
+
+- `task build` from a shell with mise's shims on `PATH` finds it, and the phase
+  rewrites the tree. Harmless while the tree is a fixpoint, which it is.
+- Xcode.app launched from the Finder does not: GUI apps inherit launchd's `PATH`
+  (`launchctl getenv PATH` is unset here, so `/usr/bin:/bin:/usr/sbin:/sbin`),
+  and mise's shims are in `~/.local/share/mise/shims`, not `/opt/homebrew/bin`.
+  The phase only emits a warning. Nothing in the app fails when it does.
+
+So a build from Xcode will not catch unformatted code. `task build` or
+`task format` will.
 
 `.swiftformat` also excludes `.build` defensively, so that a stray whole-tree run
 cannot rewrite SPM checkouts should anything ever put them there.
