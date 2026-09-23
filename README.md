@@ -1,3 +1,13 @@
+> [!NOTE]
+> This is a personal fork of [MonitorControl](https://github.com/MonitorControl/MonitorControl). Changes from upstream:
+>
+> - Opening the menu re-reads brightness, contrast and volume over DDC in the background, so the sliders follow changes made with the monitor's own buttons. Only sliders shown in the menu are read, and DDC polling mode "None" turns it off.
+> - A brightness or volume key press shows a popup with the matching sliders in the middle of the target display. It shares its sliders with the menu and never reads DDC.
+> - The brightness keys are intercepted only when the display they would reach is one this app drives, so Apple and built-in displays keep the system HUD.
+> - The contrast shortcut no longer falls back to brightness on displays without contrast, and dummy displays are left out of the key targets.
+> - The menu bar icon keeps its position when the "only when an external display is attached" mode hides and shows it.
+> - A `Taskfile.yml` builds and installs the app locally, taking the signing identity and deployment target from a git-ignored `.env.local` instead of editing `project.pbxproj`.
+
 <img src=".github/Icon-cropped.png" width="200" alt="App icon" align="left"/>
 
 <div>
